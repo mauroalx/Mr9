@@ -10,5 +10,4 @@ from app.cpe.extract import extract_hosts
 
 @action("hosts_get", notes="Clientes LAN (Hosts.Host)")
 async def hosts_get(ctx: ActionContext) -> dict[str, Any]:
-    dev = await ctx.client.get_device(ctx.device_id) or {}
-    return {"ok": True, "hosts": extract_hosts(dev)}
+    return {"ok": True, "hosts": extract_hosts(await ctx.load_device())}

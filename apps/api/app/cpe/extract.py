@@ -7,7 +7,6 @@ from typing import Any
 from app.cpe.params import Cap, identity_from_device
 from app.cpe.profiles import ALL_PROFILES, candidates_for, leaf_keys_for
 from app.cpe.tree import (
-    dig,
     first_existing_path,
     iter_numeric_children,
     leaf,
@@ -17,26 +16,34 @@ from app.cpe.tree import (
 
 
 def _vendor_tag(dev: dict[str, Any]) -> str:
-    ident = identity_from_device(dev)
-    m = ident.manufacturer_l
-    if "zte" in m:
-        return "zte"
-    if "huawei" in m:
-        return "huawei"
-    if "intelbras" in m:
-        return "intelbras"
-    return m or "generic"
+    from app.cpe.profiles import profiles_for
+
+    matched = profiles_for(dev)
+    for p in matched:
+        # primeiro perfil vendor (não generic)
+        if p.id != "generic.igd":
+            return p.id.split(".", 1)[0]
+    return "generic"
+
+
+def _node_field(node: dict[str, Any], keys: list[str]) -> Any:
+    for k in keys:
+        if k in node:
+            return node.get(k)
+    return None
 
 
 def extract_wifi_radios(dev: dict[str, Any]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
+    ssid_keys = leaf_keys_for(dev, Cap.WIFI_SSID, "ssid") or ["SSID"]
+    channel_keys = leaf_keys_for(dev, Cap.WIFI_CHANNEL, "channel") or ["Channel"]
+    enable_keys = leaf_keys_for(dev, Cap.WIFI_ENABLE, "enable") or ["Enable"]
     for container_path in candidates_for(dev, Cap.WIFI_RADIO_CONTAINER):
         if "{" in container_path:
             continue
         block = param_at(dev, container_path)
         if not isinstance(block, dict):
             continue
-        # WLANConfiguration: índices = SSIDs. WiFi/WIFI: pode ter Radio + SSIDs.
         children = iter_numeric_children(block)
         radio_block = block.get("Radio") if isinstance(block.get("Radio"), dict) else None
         if radio_block and not children:
@@ -45,67 +52,68 @@ def extract_wifi_radios(dev: dict[str, Any]) -> list[dict[str, Any]]:
         else:
             base = container_path
         for idx, node in children:
-            # Skip non-SSID objects under WiFi (e.g. NeighboringWiFiDiagnostic as sibling)
-            if "SSID" not in node and "Channel" not in node and "Enable" not in node:
+            if not any(k in node for k in (*ssid_keys, *channel_keys, *enable_keys)):
                 continue
             root = f"{base}.{idx}"
+            enable_node = _node_field(node, enable_keys)
             out.append(
                 {
                     "root": root,
                     "index": int(idx),
-                    "ssid": str_value(node.get("SSID")),
-                    "channel": str_value(node.get("Channel")),
-                    "enabled": bool(leaf(node.get("Enable"))) if node.get("Enable") is not None else None,
+                    "ssid": str_value(_node_field(node, ssid_keys)),
+                    "channel": str_value(_node_field(node, channel_keys)),
+                    "enabled": bool(leaf(enable_node)) if enable_node is not None else None,
                     "container": container_path,
                 }
             )
         if out:
-            break  # primeiro container que renderizou vence (específico→genérico)
+            break
     return out
 
 
 def extract_wan_profiles(dev: dict[str, Any]) -> list[dict[str, Any]]:
     profiles: list[dict[str, Any]] = []
-    wan_device = dig(dev, "InternetGatewayDevice", "WANDevice") or {}
-    if not isinstance(wan_device, dict):
-        return profiles
+    wan_roots = [p for p in candidates_for(dev, Cap.WAN_DEVICE) if "{" not in p]
     vlan_templates = candidates_for(dev, Cap.WAN_VLAN)
     nat_templates = candidates_for(dev, Cap.WAN_NAT)
-    for wd_idx, wd in iter_numeric_children(wan_device):
-        conns = wd.get("WANConnectionDevice") or {}
-        if not isinstance(conns, dict):
+    for wan_root in wan_roots:
+        wan_device = param_at(dev, wan_root)
+        if not isinstance(wan_device, dict):
             continue
-        for cd_idx, cd in iter_numeric_children(conns):
-            for kind in ("WANPPPConnection", "WANIPConnection"):
-                block = cd.get(kind) or {}
-                if not isinstance(block, dict):
-                    continue
-                for c_idx, node in iter_numeric_children(block):
-                    root = (
-                        f"InternetGatewayDevice.WANDevice.{wd_idx}."
-                        f"WANConnectionDevice.{cd_idx}.{kind}.{c_idx}"
-                    )
-                    vlan_path = first_existing_path(
-                        dev,
-                        [t.replace("{root}", root) for t in vlan_templates],
-                    )
-                    nat_path = first_existing_path(
-                        dev,
-                        [t.replace("{root}", root) for t in nat_templates],
-                    )
-                    profiles.append(
-                        {
-                            "root": root,
-                            "kind": "ppp" if kind == "WANPPPConnection" else "ip",
-                            "name": str_value(node.get("Name")),
-                            "username": str_value(node.get("Username")),
-                            "connection_status": str_value(node.get("ConnectionStatus")),
-                            "external_ip": str_value(node.get("ExternalIPAddress")),
-                            "vlan_path": vlan_path,
-                            "nat_path": nat_path,
-                            "nat_enabled": leaf(node.get("NATEnabled")),
-                        }
-                    )
+        for wd_idx, wd in iter_numeric_children(wan_device):
+            conns = wd.get("WANConnectionDevice") or {}
+            if not isinstance(conns, dict):
+                continue
+            for cd_idx, cd in iter_numeric_children(conns):
+                for kind in ("WANPPPConnection", "WANIPConnection"):
+                    block = cd.get(kind) or {}
+                    if not isinstance(block, dict):
+                        continue
+                    for c_idx, node in iter_numeric_children(block):
+                        root = f"{wan_root}.{wd_idx}.WANConnectionDevice.{cd_idx}.{kind}.{c_idx}"
+                        vlan_path = first_existing_path(
+                            dev,
+                            [t.replace("{root}", root) for t in vlan_templates],
+                        )
+                        nat_path = first_existing_path(
+                            dev,
+                            [t.replace("{root}", root) for t in nat_templates],
+                        )
+                        profiles.append(
+                            {
+                                "root": root,
+                                "kind": "ppp" if kind == "WANPPPConnection" else "ip",
+                                "name": str_value(node.get("Name")),
+                                "username": str_value(node.get("Username")),
+                                "connection_status": str_value(node.get("ConnectionStatus")),
+                                "external_ip": str_value(node.get("ExternalIPAddress")),
+                                "vlan_path": vlan_path,
+                                "nat_path": nat_path,
+                                "nat_enabled": leaf(node.get("NATEnabled")),
+                            }
+                        )
+        if profiles:
+            break
     return profiles
 
 
@@ -283,28 +291,40 @@ def extract_neighbor_networks(dev: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def diag_roots(dev: dict[str, Any]) -> dict[str, str | None]:
+    def prefer(cap: str) -> str | None:
+        cands = candidates_for(dev, cap)
+        return first_existing_path(dev, cands) or (cands[0] if cands else None)
+
     return {
-        "ping": first_existing_path(dev, candidates_for(dev, Cap.PING_ROOT))
-        or (candidates_for(dev, Cap.PING_ROOT) or [None])[0],
-        "traceroute": first_existing_path(dev, candidates_for(dev, Cap.TRACEROUTE_ROOT))
-        or (candidates_for(dev, Cap.TRACEROUTE_ROOT) or [None])[0],
+        "ping": prefer(Cap.PING_ROOT),
+        "traceroute": prefer(Cap.TRACEROUTE_ROOT),
         "neighbor_start": first_existing_path(
             dev,
             _expand_result_templates(candidates_for(dev, Cap.NEIGHBOR_START), _radio_indexes(dev)),
             require_value=False,
         ),
+        "igd": prefer(Cap.IGD_ROOT),
     }
 
 
-def wifi_set_parameter_values(root: str, *, ssid: str | None = None, password: str | None = None) -> list[list[Any]]:
+def wifi_set_parameter_values(
+    root: str,
+    *,
+    ssid: str | None = None,
+    password: str | None = None,
+    dev: dict[str, Any] | None = None,
+) -> list[list[Any]]:
+    """Monta SPV usando Cap.WIFI_SSID / Cap.WIFI_KEY do catálogo."""
+    sample = dev or {}
     pvs: list[list[Any]] = []
     if ssid is not None:
-        pvs.append([f"{root}.SSID", str(ssid), "xsd:string"])
+        ssid_tmpls = candidates_for(sample, Cap.WIFI_SSID) or ["{root}.SSID"]
+        pvs.append([ssid_tmpls[0].replace("{root}", root), str(ssid), "xsd:string"])
     if password:
-        # genérico: tenta KeyPassphrase + PreSharedKey
-        for leaf_path in (
-            f"{root}.KeyPassphrase",
-            f"{root}.PreSharedKey.1.KeyPassphrase",
-        ):
-            pvs.append([leaf_path, str(password), "xsd:string"])
+        key_tmpls = candidates_for(sample, Cap.WIFI_KEY) or [
+            "{root}.KeyPassphrase",
+            "{root}.PreSharedKey.1.KeyPassphrase",
+        ]
+        for tmpl in key_tmpls:
+            pvs.append([tmpl.replace("{root}", root), str(password), "xsd:string"])
     return pvs

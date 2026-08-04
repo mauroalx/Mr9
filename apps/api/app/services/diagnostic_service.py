@@ -2,20 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
-
-def _leaf(node: Any) -> Any:
-    if isinstance(node, dict) and "_value" in node:
-        return node.get("_value")
-    return node
-
-
-def _dig(obj: Any, *parts: str) -> Any:
-    cur = obj
-    for p in parts:
-        if not isinstance(cur, dict):
-            return None
-        cur = cur.get(p)
-    return cur
+from app.cpe.extract import extract_dhcp_lan, extract_hosts
+from app.cpe.params import Cap
+from app.cpe.profiles import candidates_for
+from app.cpe.tree import leaf, param_at
 
 
 def _score_to_grade(score: int) -> str:
@@ -60,22 +50,26 @@ def run_router_diagnostic(
     approved_dns: list[str] | None = None,
     ping_results: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Diagnóstico leve portável (sem acoplamentos MasterOLT)."""
+    """Diagnóstico leve: lê inventário via extract/catálogo CPE (sem dig hardcoded)."""
     approved = set(approved_dns or [])
+    dhcp = extract_dhcp_lan(dev) or {}
+    raw_dns = dhcp.get("dnsServers") or ""
     dns_servers: list[str] = []
-    lan = _dig(dev, "InternetGatewayDevice", "LANDevice", "1", "LANHostConfigManagement") or {}
-    raw_dns = _leaf(lan.get("DNSServers"))
     if isinstance(raw_dns, str):
         dns_servers = [s.strip() for s in raw_dns.split(",") if s.strip()]
 
     invalid_dns = [s for s in dns_servers if approved and s not in approved]
     dns_penalty = 1 if invalid_dns else 0
 
-    hosts_obj = _dig(dev, "InternetGatewayDevice", "LANDevice", "1", "Hosts", "Host") or {}
-    host_count = len([k for k in hosts_obj if str(k).isdigit()]) if isinstance(hosts_obj, dict) else 0
+    hosts = extract_hosts(dev)
+    host_count = len(hosts)
     host_penalty = 1 if host_count > 10 else (2 if host_count > 20 else 0)
 
-    uptime = _leaf(_dig(dev, "InternetGatewayDevice", "DeviceInfo", "UpTime"))
+    uptime = None
+    for path in candidates_for(dev, Cap.DEVICE_UPTIME):
+        uptime = leaf(param_at(dev, path))
+        if uptime is not None:
+            break
     try:
         uptime_s = int(uptime) if uptime is not None else 0
     except (TypeError, ValueError):

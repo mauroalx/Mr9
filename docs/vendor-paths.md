@@ -1,15 +1,16 @@
 # Paths TR-069 por vendor / modelo
 
-## Onde configurar
+## Camadas (não misturar)
 
-| O quê | Onde |
+| Camada | Responsabilidade |
 |---|---|
-| Capabilidades (`wifi.ssid`, `neighbor.result`, …) | `apps/api/app/cpe/params.py` → `Cap` |
-| Helpers de árvore Genie (`_value`, dig) | `apps/api/app/cpe/tree.py` |
-| Perfil **genérico** (fallback) | `apps/api/app/cpe/profiles/generic.py` |
-| Perfis **ZTE / Huawei / Intelbras** | `apps/api/app/cpe/profiles/<vendor>.py` |
-| Registro (concatena perfis) | `apps/api/app/cpe/profiles/__init__.py` |
-| Extração (usa o catálogo) | `apps/api/app/cpe/extract.py` |
+| `app/cpe/tree.py` | Única fonte de `leaf` / `dig` / `param_at` |
+| `app/cpe/params.py` + `profiles/` | Paths TR-069 (Cap + vendor/modelo → generic) |
+| `app/cpe/extract.py` | Ler inventário Genie usando o catálogo |
+| `app/acs/actions/` | Side-effects NBI (`@action`); usar `ctx.load_device()`, `task_result`, Caps — **sem** string de path solta |
+| `app/services/diagnostic_service.py` | Score; consome extract/catálogo, não dig hardcoded |
+
+Debug: `describe_resolution(device_dict, Cap.NEIGHBOR_RESULT)`.
 
 ## Ordem de resolução
 
@@ -28,8 +29,6 @@ Não dá para catalogar todos os ONUs do mundo: o genérico cobre TR-098; vendor
 3. Preencha `notes` na `PathFamily` (o que o path faz / firmware).
 4. Teste unitário em `tests/test_cpe_params_registry.py` e, se for extract, inventário JSON mínimo em `tests/test_cpe_extract.py`.
 5. Documente uma linha na tabela de `docs/nbi.md`.
-
-Debug útil:
 
 ```python
 from app.cpe.profiles import describe_resolution, Cap

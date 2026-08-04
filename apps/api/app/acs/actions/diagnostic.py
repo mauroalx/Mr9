@@ -22,7 +22,7 @@ async def diagnostic_clear(ctx: ActionContext) -> dict[str, Any]:
 async def diagnostic_full(ctx: ActionContext) -> dict[str, Any]:
     settings = ctx.db.query(AppSettings).first()
     approved = list(settings.approved_dns or []) if settings else []
-    dev = await ctx.client.get_device(ctx.device_id) or {}
+    dev = await ctx.load_device()
     report = run_router_diagnostic(
         dev,
         approved_dns=approved,

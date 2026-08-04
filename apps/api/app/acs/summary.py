@@ -13,23 +13,49 @@ from app.cpe.extract import (
     extract_wan_profiles,
     extract_wifi_radios,
 )
-from app.cpe.tree import dig, leaf
+from app.cpe.params import Cap, identity_from_device
+from app.cpe.profiles import candidates_for
+from app.cpe.tree import leaf, param_at
 
 
-DEVICE_DETAIL_PROJECTION: list[str] = [
-    "_id",
-    "_deviceId",
-    "_lastInform",
-    "_tags",
-    "InternetGatewayDevice.DeviceInfo",
-    "InternetGatewayDevice.LANDevice.1.LANHostConfigManagement",
-    "InternetGatewayDevice.LANDevice.1.Hosts",
-    "InternetGatewayDevice.LANDevice.1.WLANConfiguration",
-    "InternetGatewayDevice.LANDevice.1.WiFi",
-    "InternetGatewayDevice.LANDevice.1.WIFI",
-    "InternetGatewayDevice.WANDevice",
-    "InternetGatewayDevice.WiFi",
-]
+def _detail_projection() -> list[str]:
+    """Projection GenieACS alinhada às Caps do workbench (genérico + variantes WiFi)."""
+    base = [
+        "_id",
+        "_deviceId",
+        "_lastInform",
+        "_tags",
+        "InternetGatewayDevice.DeviceInfo",
+    ]
+    # Caps sem template {i}/{root}
+    for cap in (
+        Cap.DHCP_ROOT,
+        Cap.HOSTS_CONTAINER,
+        Cap.WAN_DEVICE,
+        Cap.WIFI_RADIO_CONTAINER,
+        Cap.NEIGHBOR_RESULT,
+        Cap.DEVICE_UPTIME,
+    ):
+        for path in candidates_for({}, cap):
+            if "{" in path:
+                continue
+            # Hosts.Host → Hosts para projection mais ampla
+            if path.endswith(".Host"):
+                path = path.rsplit(".", 1)[0]
+            if path.endswith(".Result"):
+                path = path.rsplit(".", 1)[0]
+            base.append(path)
+    # dedupe preserving order
+    seen: set[str] = set()
+    out: list[str] = []
+    for p in base:
+        if p not in seen:
+            seen.add(p)
+            out.append(p)
+    return out
+
+
+DEVICE_DETAIL_PROJECTION: list[str] = _detail_projection()
 
 
 def device_summary(dev: dict[str, Any], *, online_threshold_s: int) -> dict[str, Any]:
@@ -48,16 +74,17 @@ def device_summary(dev: dict[str, Any], *, online_threshold_s: int) -> dict[str,
             online = age <= online_threshold_s
         except Exception:
             pass
-    did = dev.get("_deviceId") or {}
+    ident = identity_from_device(dev)
+    sw = leaf(param_at(dev, "InternetGatewayDevice.DeviceInfo.SoftwareVersion"))
     return {
         "id": dev.get("_id"),
-        "serial": did.get("_SerialNumber"),
-        "product_class": did.get("_ProductClass"),
-        "manufacturer": did.get("_Manufacturer"),
+        "serial": ident.serial or None,
+        "product_class": ident.product_class or None,
+        "manufacturer": ident.manufacturer or None,
         "last_inform": last_s,
         "online": online,
         "offline_age_s": age,
-        "software_version": leaf(dig(dev, "InternetGatewayDevice", "DeviceInfo", "SoftwareVersion")),
+        "software_version": sw,
         "tags": list((dev.get("_tags") or [])) if isinstance(dev.get("_tags"), list) else [],
     }
 

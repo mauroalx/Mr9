@@ -12,13 +12,12 @@ from app.cpe.extract import dhcp_paths, extract_dhcp_lan
 
 @action("dhcp_get", notes="Lê LANHostConfigManagement via catálogo")
 async def dhcp_get(ctx: ActionContext) -> dict[str, Any]:
-    dev = await ctx.client.get_device(ctx.device_id) or {}
-    return {"ok": True, "config": extract_dhcp_lan(dev)}
+    return {"ok": True, "config": extract_dhcp_lan(await ctx.load_device())}
 
 
 @action("dhcp_set", permission="acs.devices.write", notes="SPV DNS/pool/lease usando Cap.DHCP_*")
 async def dhcp_set(ctx: ActionContext) -> dict[str, Any]:
-    paths = dhcp_paths(await ctx.client.get_device(ctx.device_id) or {})
+    paths = dhcp_paths(await ctx.load_device())
     p = ctx.params
     pvs: list[list[Any]] = []
     if "enabled" in p:

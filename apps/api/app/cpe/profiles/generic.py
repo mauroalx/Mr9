@@ -52,6 +52,19 @@ GENERIC = VendorProfile(
             ),
             notes="VLAN vendor-neuter; vendors adicionam aliases mais à frente na cadeia.",
         ),
+        Cap.WAN_DEVICE: PathFamily(
+            capability=Cap.WAN_DEVICE,
+            candidates=("InternetGatewayDevice.WANDevice",),
+            notes="Container WANDevice; índices 1..N.",
+        ),
+        Cap.DEVICE_UPTIME: PathFamily(
+            capability=Cap.DEVICE_UPTIME,
+            candidates=("InternetGatewayDevice.DeviceInfo.UpTime",),
+        ),
+        Cap.IGD_ROOT: PathFamily(
+            capability=Cap.IGD_ROOT,
+            candidates=("InternetGatewayDevice",),
+        ),
         Cap.WAN_NAT: PathFamily(
             capability=Cap.WAN_NAT,
             candidates=("{root}.NATEnabled",),

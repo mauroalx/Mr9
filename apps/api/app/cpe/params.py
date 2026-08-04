@@ -26,10 +26,13 @@ class Cap:
     WIFI_CHANNEL = "wifi.channel"
     WIFI_ENABLE = "wifi.enable"
 
+    WAN_DEVICE = "wan.device"  # container WANDevice
     WAN_VLAN = "wan.vlan"
     WAN_NAT = "wan.nat"
     WAN_USERNAME = "wan.username"
     WAN_PASSWORD = "wan.password"
+
+    DEVICE_UPTIME = "device.uptime"
 
     DHCP_ROOT = "dhcp.root"
     DHCP_ENABLE = "dhcp.enable"
@@ -49,6 +52,8 @@ class Cap:
     TRACEROUTE_ROOT = "diag.traceroute"
 
     HOSTS_CONTAINER = "hosts.container"
+
+    IGD_ROOT = "igd.root"  # para refreshObject / projection
 
 
 @dataclass(frozen=True)
@@ -99,17 +104,14 @@ class DeviceIdentity:
 
 
 def identity_from_device(dev: dict[str, Any]) -> DeviceIdentity:
+    from app.cpe.tree import leaf
+
     did = dev.get("_deviceId") if isinstance(dev.get("_deviceId"), dict) else {}
     info = (
         ((dev.get("InternetGatewayDevice") or {}).get("DeviceInfo") or {})
         if isinstance(dev.get("InternetGatewayDevice"), dict)
         else {}
     )
-
-    def leaf(n: Any) -> str:
-        if isinstance(n, dict) and "_value" in n:
-            return str(n.get("_value") or "")
-        return str(n or "") if n is not None else ""
 
     manufacturer = str(did.get("_Manufacturer") or leaf(info.get("Manufacturer")) or "")
     product_class = str(did.get("_ProductClass") or leaf(info.get("ProductClass")) or "")

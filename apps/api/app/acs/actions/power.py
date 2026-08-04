@@ -4,23 +4,22 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.acs.actions.base import ActionContext, action
+from app.acs.actions.base import ActionContext, action, create_named_task
+from app.cpe.params import Cap
+from app.cpe.profiles import candidates_for
 
 
 @action("reboot", permission="acs.devices.write", notes="Reboot via task GenieACS")
 async def reboot(ctx: ActionContext) -> dict[str, Any]:
-    res = await ctx.client.create_task(
-        ctx.device_id, {"name": "reboot"}, connection_request=True, timeout_ms=20000
-    )
-    return {"ok": res.status_code in {200, 202}, "http": res.status_code}
+    return await create_named_task(ctx, {"name": "reboot"}, timeout_ms=20000)
 
 
-@action("sync", permission="acs.devices.write", notes="refreshObject InternetGatewayDevice")
+@action("sync", permission="acs.devices.write", notes="refreshObject no IGD root do catálogo")
 async def sync(ctx: ActionContext) -> dict[str, Any]:
-    res = await ctx.client.create_task(
-        ctx.device_id,
-        {"name": "refreshObject", "objectName": "InternetGatewayDevice"},
-        connection_request=True,
+    dev = await ctx.load_device()
+    igd = (candidates_for(dev, Cap.IGD_ROOT) or ["InternetGatewayDevice"])[0]
+    return await create_named_task(
+        ctx,
+        {"name": "refreshObject", "objectName": igd},
         timeout_ms=25000,
     )
-    return {"ok": res.status_code in {200, 202}, "http": res.status_code}
