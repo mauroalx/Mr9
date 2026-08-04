@@ -1,0 +1,27 @@
+name: Feature
+description: Nova funcionalidade ou melhoria
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Escopo
+      options:
+        - MVP (v0.1)
+        - Roadmap (pós-MVP)
+        - Não tenho certeza
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Por que isso importa para ISPs?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposta
+    validations:
+      required: true

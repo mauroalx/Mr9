@@ -1,0 +1,32 @@
+name: Bug
+description: Algo não funciona como esperado
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: O que aconteceu?
+      description: Descreva o comportamento observado vs esperado
+    validations:
+      required: true
+  - type: input
+    id: vendor
+    attributes:
+      label: Vendor / modelo CPE
+      placeholder: ZTE ZXHN H3601P, Huawei K562e-10, Intelbras GF1200…
+  - type: input
+    id: genie
+    attributes:
+      label: GenieACS / firmware
+  - type: textarea
+    id: path
+    attributes:
+      label: Path TR-069 / request
+      placeholder: InternetGatewayDevice.LANDevice.1.WiFi...
+  - type: textarea
+    id: repro
+    attributes:
+      label: Como reproduzir
+    validations:
+      required: true

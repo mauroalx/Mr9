@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discussão / dúvidas
+    url: https://github.com/discussions
+    about: Use discussions quando disponíveis no fork/org.

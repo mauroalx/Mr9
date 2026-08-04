@@ -1,0 +1,30 @@
+name: Vendor path (TR-069)
+description: Novo path Wi-Fi / vizinhança / leaf vendor para o diagnóstico ou workbench
+title: "[vendor] "
+labels: ["good first issue", "nbi"]
+body:
+  - type: input
+    id: vendor
+    attributes:
+      label: Vendor
+      placeholder: zte / huawei / intelbras / outro
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Modelo + software version
+    validations:
+      required: true
+  - type: textarea
+    id: paths
+    attributes:
+      label: Paths descobertos (GPN / inventário)
+      description: Cole paths e leaves relevantes (Start/DiagnosticsState/Result…)
+    validations:
+      required: true
+  - type: textarea
+    id: trigger
+    attributes:
+      label: Como disparar o scan / SET
+      placeholder: Ex. X_ITBS_StartNeighboringWiFiDiagnostic=1

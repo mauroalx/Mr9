@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mr9
+      POSTGRES_USER: mr9
+      POSTGRES_PASSWORD: mr9
+    ports:
+      - "5432:5432"
+    volumes:
+      - mr9_pg_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mr9 -d mr9"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./apps/api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      MR9_SECRET_KEY: ${MR9_SECRET_KEY:-dev-only-change-me-please-use-bootstrap}
+      MR9_DATABASE_URL: postgresql+psycopg://mr9:mr9@postgres:5432/mr9
+      MR9_CORS_ORIGINS: http://localhost:3000
+    volumes:
+      - ./apps/api:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- -H 0.0.0.0 -p 3000"
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api/v1
+    volumes:
+      - ./apps/web:/app
+      - web_node_modules:/app/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  mr9_pg_dev:
+  web_node_modules:

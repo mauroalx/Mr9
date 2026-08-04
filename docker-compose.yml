@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mr9
+      POSTGRES_USER: mr9
+      POSTGRES_PASSWORD: mr9
+    ports:
+      - "5432:5432"
+    volumes:
+      - mr9_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mr9 -d mr9"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./apps/api
+    environment:
+      MR9_SECRET_KEY: ${MR9_SECRET_KEY:-dev-only-change-me-please-use-bootstrap}
+      MR9_DATABASE_URL: postgresql+psycopg://mr9:mr9@postgres:5432/mr9
+      MR9_CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api/v1
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  mr9_pg:
