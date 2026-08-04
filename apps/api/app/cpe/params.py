@@ -11,19 +11,22 @@ Quem contribui: edite `app/cpe/profiles/<vendor>.py` (ou crie um novo), registre
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Iterable
-
+from typing import Any
 
 # ---------------------------------------------------------------------------
-# Capabilidades (chaves estáveis — use estas no código de aplicação)
+# Capacidades (chaves estáveis usadas pelo código de aplicação)
 # ---------------------------------------------------------------------------
+
 
 class Cap:
     WIFI_RADIO_CONTAINER = "wifi.radio_container"
     WIFI_SSID = "wifi.ssid"
     WIFI_KEY = "wifi.key"
     WIFI_CHANNEL = "wifi.channel"
+    WIFI_AUTO_CHANNEL = "wifi.auto_channel"
+    WIFI_BANDWIDTH = "wifi.bandwidth"
     WIFI_ENABLE = "wifi.enable"
 
     WAN_DEVICE = "wan.device"  # container WANDevice
@@ -31,8 +34,13 @@ class Cap:
     WAN_NAT = "wan.nat"
     WAN_USERNAME = "wan.username"
     WAN_PASSWORD = "wan.password"
+    WAN_BYTES_RECEIVED = "wan.bytes_received"
+    WAN_BYTES_SENT = "wan.bytes_sent"
+    WAN_TRAFFIC_INTERFACE = "wan.traffic_interface"
 
     DEVICE_UPTIME = "device.uptime"
+
+    OPTICAL_CONTAINER = "optical.container"
 
     DHCP_ROOT = "dhcp.root"
     DHCP_ENABLE = "dhcp.enable"
@@ -52,6 +60,7 @@ class Cap:
     TRACEROUTE_ROOT = "diag.traceroute"
 
     HOSTS_CONTAINER = "hosts.container"
+    LAN_PORT_CONTAINER = "lan.port_container"
 
     IGD_ROOT = "igd.root"  # para refreshObject / projection
 
@@ -66,7 +75,7 @@ class PathFamily:
 
     capability: str
     candidates: tuple[str, ...]
-    # Campos leaf relativos ao item Result.* (neighbors) ou ao rádio
+    # Campos leaf relativos ao container (óptica), Result.* (neighbors) ou rádio.
     leaf_map: dict[str, tuple[str, ...]] = field(default_factory=dict)
     notes: str = ""
 
@@ -127,20 +136,24 @@ def _norm_set(values: Iterable[str]) -> frozenset[str]:
 def profile_matches(profile: VendorProfile, ident: DeviceIdentity) -> bool:
     mfrs = _norm_set(profile.manufacturers)
     pcs = _norm_set(profile.product_classes)
-    if mfrs and ident.manufacturer_l not in mfrs and not any(x in ident.manufacturer_l for x in mfrs):
-        # substring alias (ex.: "huawei technologies" contains "huawei")
-        if not any(alias in ident.manufacturer_l or ident.manufacturer_l in alias for alias in mfrs):
-            return False
-    if pcs and ident.product_class_l not in pcs and not any(
-        alias in ident.product_class_l or ident.product_class_l in alias for alias in pcs
-    ):
+    manufacturer_mismatch = (
+        mfrs
+        and ident.manufacturer_l not in mfrs
+        and not any(alias in ident.manufacturer_l or ident.manufacturer_l in alias for alias in mfrs)
+    )
+    if manufacturer_mismatch:
         return False
-    return True
+    product_mismatch = (
+        pcs
+        and ident.product_class_l not in pcs
+        and not any(alias in ident.product_class_l or ident.product_class_l in alias for alias in pcs)
+    )
+    return not product_mismatch
 
 
 def matching_profiles(ident: DeviceIdentity, profiles: tuple[VendorProfile, ...]) -> list[VendorProfile]:
     matched = [p for p in profiles if profile_matches(p, ident)]
-    # Específico primeiro: priority asc, depois id
+    # Perfis específicos têm prioridade; o id desempata de forma determinística.
     return sorted(matched, key=lambda p: (p.priority, p.id))
 
 

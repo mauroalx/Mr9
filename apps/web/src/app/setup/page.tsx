@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, getToken, setTokens } from "@/lib/api";
+import { Mr9Mark } from "@/components/brand/Mr9Mark";
+import { Btn, Control, TextArea } from "@/components/ops/primitives";
 
 type Status = { installed: boolean; has_superadmin: boolean; acs_servers: number };
 
 export default function SetupPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
-  const [status, setStatus] = useState<Status | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [admin, setAdmin] = useState({ email: "", name: "", password: "" });
   const [settings, setSettings] = useState({
@@ -27,8 +28,11 @@ export default function SetupPage() {
   useEffect(() => {
     api<Status>("/setup/status", { auth: false })
       .then((s) => {
-        setStatus(s);
         if (s.installed) router.push("/login");
+        if (s.has_superadmin && !getToken()) {
+          router.replace("/login");
+          return;
+        }
         if (s.has_superadmin) setStep(2);
         if (s.acs_servers > 0) setStep(4);
       })
@@ -37,7 +41,12 @@ export default function SetupPage() {
 
   async function createAdmin() {
     setError(null);
-    await api("/setup/superadmin", { method: "POST", auth: false, body: JSON.stringify(admin) });
+    const tokens = await api<{ access_token: string; refresh_token: string }>("/setup/superadmin", {
+      method: "POST",
+      auth: false,
+      body: JSON.stringify(admin),
+    });
+    setTokens(tokens.access_token, tokens.refresh_token);
     setStep(2);
   }
 
@@ -45,7 +54,6 @@ export default function SetupPage() {
     setError(null);
     await api("/setup/settings", {
       method: "POST",
-      auth: false,
       body: JSON.stringify({
         timezone: settings.timezone,
         approved_dns: settings.approved_dns
@@ -60,119 +68,144 @@ export default function SetupPage() {
 
   async function saveAcs() {
     setError(null);
-    await api("/setup/acs-server", { method: "POST", auth: false, body: JSON.stringify(acs) });
+    await api("/setup/acs-server", {
+      method: "POST",
+      body: JSON.stringify({
+        ...acs,
+        bearer_token: acs.bearer_token.trim() ? acs.bearer_token : null,
+      }),
+    });
     setStep(4);
   }
 
   async function complete() {
     setError(null);
-    await api("/setup/complete", { method: "POST", auth: false, body: "{}" });
+    await api("/setup/complete", { method: "POST", body: "{}" });
     router.push("/login");
   }
 
+  const steps = ["Admin", "Config", "ACS", "Fim"];
+
   return (
-    <main style={{ maxWidth: 640, margin: "6vh auto", padding: 16 }}>
-      <div className="panel">
-        <h1 style={{ marginTop: 0 }}>Instalação Mr9</h1>
-        <p style={{ color: "var(--muted)" }}>
-          Wizard para VPS · passo {step}/4 {status?.installed ? "(já instalado)" : ""}
-        </p>
-        {error ? <p style={{ color: "var(--crit)" }}>{error}</p> : null}
+    <main className="grid min-h-screen place-items-center bg-canvas px-4 py-8">
+      <div className="w-full max-w-lg rounded-[8px] border border-rule bg-white p-7 text-ink shadow-panel">
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Mr9Mark className="h-8 w-8 text-accent" />
+            <div>
+              <h1 className="text-[17px] font-bold">Instalação</h1>
+              <p className="text-[12px] text-quiet">Passo {step} de 4</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-5 grid grid-cols-4 gap-1.5">
+          {steps.map((label, i) => (
+            <div key={label} className="grid gap-1">
+              <div className={`h-1 rounded-full ${i + 1 <= step ? "bg-accent" : "bg-rule"}`} />
+              <span className={`text-[12px] font-semibold ${i + 1 <= step ? "text-accent-strong" : "text-quiet"}`}>
+                {label}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {error ? <p className="mb-3 rounded-[5px] border border-bad/20 bg-bad-soft px-3 py-2 text-[13px] text-bad">{error}</p> : null}
 
         {step === 1 ? (
-          <section>
-            <h3>1. Super Admin</h3>
-            <p style={{ fontSize: 13, color: "var(--muted)" }}>
-              Conta de sistema com acesso total. Não aparece no CRUD de usuários.
-            </p>
-            <div className="field">
-              <label>Nome</label>
-              <input className="input" value={admin.name} onChange={(e) => setAdmin({ ...admin, name: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>E-mail</label>
-              <input className="input" type="email" value={admin.email} onChange={(e) => setAdmin({ ...admin, email: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>Senha</label>
-              <input
-                className="input"
+          <section className="grid gap-3">
+            <h2 className="text-[14px] font-bold">Super Admin</h2>
+            <label className="grid gap-1">
+              <span className="text-[12px] font-semibold text-ink-soft">Nome</span>
+              <Control
+                value={admin.name}
+                onChange={(e) => setAdmin({ ...admin, name: e.target.value })}
+              />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-[12px] font-semibold text-ink-soft">E-mail</span>
+              <Control
+                type="email"
+                value={admin.email}
+                onChange={(e) => setAdmin({ ...admin, email: e.target.value })}
+              />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-[12px] font-semibold text-ink-soft">Senha</span>
+              <Control
                 type="password"
                 value={admin.password}
                 onChange={(e) => setAdmin({ ...admin, password: e.target.value })}
               />
-            </div>
-            <button className="btn" type="button" onClick={() => createAdmin().catch((e) => setError(e.message))}>
-              Continuar
-            </button>
+            </label>
+            <Btn onClick={() => createAdmin().catch((e) => setError(e.message))}>Continuar</Btn>
           </section>
         ) : null}
 
         {step === 2 ? (
-          <section>
-            <h3>2. Settings operacionais</h3>
-            <div className="field">
-              <label>Timezone</label>
-              <input className="input" value={settings.timezone} onChange={(e) => setSettings({ ...settings, timezone: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>DNS aprovados (um por linha)</label>
-              <textarea
-                className="textarea"
-                rows={4}
+          <section className="grid gap-3">
+            <h2 className="text-[14px] font-bold">Configurações</h2>
+            <label className="grid gap-1">
+              <span className="text-[12px] font-semibold text-ink-soft">Timezone</span>
+              <Control
+                value={settings.timezone}
+                onChange={(e) => setSettings({ ...settings, timezone: e.target.value })}
+              />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-[12px] font-semibold text-ink-soft">DNS aprovados</span>
+              <TextArea
                 value={settings.approved_dns}
                 onChange={(e) => setSettings({ ...settings, approved_dns: e.target.value })}
               />
-            </div>
-            <div className="field">
-              <label>Limiar online (segundos)</label>
-              <input
-                className="input"
+            </label>
+            <label className="grid gap-1">
+              <span className="text-[12px] font-semibold text-ink-soft">Limiar online (s)</span>
+              <Control
                 type="number"
                 value={settings.online_threshold_s}
                 onChange={(e) => setSettings({ ...settings, online_threshold_s: Number(e.target.value) })}
               />
-            </div>
-            <button className="btn" type="button" onClick={() => saveSettings().catch((e) => setError(e.message))}>
-              Continuar
-            </button>
+            </label>
+            <Btn onClick={() => saveSettings().catch((e) => setError(e.message))}>Continuar</Btn>
           </section>
         ) : null}
 
         {step === 3 ? (
-          <section>
-            <h3>3. Servidor GenieACS (NBI)</h3>
-            <p style={{ fontSize: 13, color: "var(--muted)" }}>O token fica cifrado no backend. O browser não chama o NBI.</p>
-            <div className="field">
-              <label>Nome</label>
-              <input className="input" value={acs.name} onChange={(e) => setAcs({ ...acs, name: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>URL NBI</label>
-              <input className="input" value={acs.base_url} onChange={(e) => setAcs({ ...acs, base_url: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>Bearer token</label>
-              <input
-                className="input"
+          <section className="grid gap-3">
+            <h2 className="text-[14px] font-bold">GenieACS</h2>
+            <label className="grid gap-1">
+              <span className="text-[12px] font-semibold text-ink-soft">Nome</span>
+              <Control
+                value={acs.name}
+                onChange={(e) => setAcs({ ...acs, name: e.target.value })}
+              />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-[12px] font-semibold text-ink-soft">URL</span>
+              <Control
+                value={acs.base_url}
+                onChange={(e) => setAcs({ ...acs, base_url: e.target.value })}
+              />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-[12px] font-semibold text-ink-soft">Bearer token</span>
+              <Control
                 type="password"
+                placeholder="Opcional"
                 value={acs.bearer_token}
                 onChange={(e) => setAcs({ ...acs, bearer_token: e.target.value })}
               />
-            </div>
-            <button className="btn" type="button" onClick={() => saveAcs().catch((e) => setError(e.message))}>
-              Testar e salvar
-            </button>
+            </label>
+            <Btn onClick={() => saveAcs().catch((e) => setError(e.message))}>Testar e salvar</Btn>
           </section>
         ) : null}
 
         {step === 4 ? (
-          <section>
-            <h3>4. Concluir</h3>
-            <p>Pronto para operar. Faça login com o Super Admin.</p>
-            <button className="btn" type="button" onClick={() => complete().catch((e) => setError(e.message))}>
-              Ir para login
-            </button>
+          <section className="grid gap-3">
+            <h2 className="text-[14px] font-bold">Concluir</h2>
+            <p className="text-[13px] text-ink-soft">Instalação pronta. Faça login com o Super Admin.</p>
+            <Btn onClick={() => complete().catch((e) => setError(e.message))}>Ir para o login</Btn>
           </section>
         ) : null}
       </div>

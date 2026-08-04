@@ -38,6 +38,16 @@ GENERIC = VendorProfile(
             candidates=("{root}.Channel",),
             leaf_map={"channel": ("Channel",)},
         ),
+        Cap.WIFI_AUTO_CHANNEL: PathFamily(
+            capability=Cap.WIFI_AUTO_CHANNEL,
+            candidates=("{root}.AutoChannelEnable",),
+            leaf_map={"auto_channel": ("AutoChannelEnable",)},
+        ),
+        Cap.WIFI_BANDWIDTH: PathFamily(
+            capability=Cap.WIFI_BANDWIDTH,
+            candidates=("{root}.Bandwidth", "{root}.OperatingChannelBandwidth"),
+            leaf_map={"bandwidth": ("Bandwidth", "OperatingChannelBandwidth")},
+        ),
         Cap.WIFI_ENABLE: PathFamily(
             capability=Cap.WIFI_ENABLE,
             candidates=("{root}.Enable",),
@@ -61,6 +71,45 @@ GENERIC = VendorProfile(
             capability=Cap.DEVICE_UPTIME,
             candidates=("InternetGatewayDevice.DeviceInfo.UpTime",),
         ),
+        Cap.OPTICAL_CONTAINER: PathFamily(
+            capability=Cap.OPTICAL_CONTAINER,
+            candidates=(
+                "Device.Optical.Interface",
+                "InternetGatewayDevice.WANDevice.1.OpticalInterface",
+            ),
+            leaf_map={
+                "status": ("Status", "ConnectionStatus", "LinkStatus"),
+                "technology": ("Technology", "Standard", "LinkType"),
+                "rx_power": ("RXPower", "RxPower", "ReceivePower", "OpticalRxPower"),
+                "tx_power": ("TXPower", "TxPower", "TransmitPower", "OpticalTxPower"),
+                "distance": ("Distance", "ONTDistance", "OnuDistance", "OpticalDistance"),
+                "temperature": ("TransceiverTemperature", "Temperature", "OpticalTemperature"),
+                "voltage": ("SupplyVoltage", "Voltage", "OpticalVoltage"),
+                "bias": ("BiasCurrent", "TxBias", "OpticalBiasCurrent"),
+                "fec": (
+                    "Stats.FECError",
+                    "Stats.FECErrors",
+                    "FECError",
+                    "FECErrors",
+                    "FecErrors",
+                ),
+                "hec": (
+                    "Stats.HECError",
+                    "Stats.HECErrors",
+                    "HECError",
+                    "HECErrors",
+                    "HecErrors",
+                ),
+                "crc": (
+                    "Stats.CRCError",
+                    "Stats.CRCErrors",
+                    "CRCError",
+                    "CRCErrors",
+                    "CrcErrors",
+                ),
+            },
+            notes="Interface óptica TR-181; aliases servem como fallback entre firmwares.",
+        ),
         Cap.IGD_ROOT: PathFamily(
             capability=Cap.IGD_ROOT,
             candidates=("InternetGatewayDevice",),
@@ -71,11 +120,53 @@ GENERIC = VendorProfile(
         ),
         Cap.WAN_USERNAME: PathFamily(
             capability=Cap.WAN_USERNAME,
-            candidates=("{root}.Username",),
+            candidates=(
+                "{root}.Username",
+                "VirtualParameters.pppoeUsername",
+                "VirtualParameters.PPPoEUsername",
+                "VirtualParameters.pppoe_username",
+            ),
+            notes="Username real por WAN; Virtual Parameters são atalhos opcionais.",
         ),
         Cap.WAN_PASSWORD: PathFamily(
             capability=Cap.WAN_PASSWORD,
             candidates=("{root}.Password",),
+        ),
+        Cap.WAN_BYTES_RECEIVED: PathFamily(
+            capability=Cap.WAN_BYTES_RECEIVED,
+            candidates=(
+                "{root}.Stats.TotalBytesReceived",
+                "{root}.Stats.BytesReceived",
+                "{root}.Stats.EthernetBytesReceived",
+                "{wan}.WANCommonInterfaceConfig.TotalBytesReceived",
+                "{wan}.WANEthernetInterfaceConfig.Stats.BytesReceived",
+                "{interface}.Stats.BytesReceived",
+            ),
+            notes="Conexão primeiro; contadores agregados da WANDevice como fallback.",
+        ),
+        Cap.WAN_BYTES_SENT: PathFamily(
+            capability=Cap.WAN_BYTES_SENT,
+            candidates=(
+                "{root}.Stats.TotalBytesSent",
+                "{root}.Stats.BytesSent",
+                "{root}.Stats.EthernetBytesSent",
+                "{wan}.WANCommonInterfaceConfig.TotalBytesSent",
+                "{wan}.WANEthernetInterfaceConfig.Stats.BytesSent",
+                "{interface}.Stats.BytesSent",
+            ),
+            notes="Conexão primeiro; contadores agregados da WANDevice como fallback.",
+        ),
+        Cap.WAN_TRAFFIC_INTERFACE: PathFamily(
+            capability=Cap.WAN_TRAFFIC_INTERFACE,
+            candidates=(
+                "Device.PPP.Interface",
+                "Device.IP.Interface",
+                "Device.Ethernet.Interface",
+                "Device.PTM.Link",
+                "Device.ATM.Link",
+                "Device.Optical.Interface",
+            ),
+            notes="Interfaces TR-181 ordenadas da camada lógica para a física.",
         ),
         Cap.DHCP_ROOT: PathFamily(
             capability=Cap.DHCP_ROOT,
@@ -157,6 +248,18 @@ GENERIC = VendorProfile(
         Cap.HOSTS_CONTAINER: PathFamily(
             capability=Cap.HOSTS_CONTAINER,
             candidates=("InternetGatewayDevice.LANDevice.1.Hosts.Host",),
+        ),
+        Cap.LAN_PORT_CONTAINER: PathFamily(
+            capability=Cap.LAN_PORT_CONTAINER,
+            candidates=("InternetGatewayDevice.LANDevice.1.LANEthernetInterfaceConfig",),
+            leaf_map={
+                "status": ("Status",),
+                "enable": ("Enable",),
+                "rate": ("MaxBitRate", "CurrentBitRate"),
+                "duplex": ("DuplexMode",),
+                "name": ("Name", "X_HW_PortName", "X_ZTE-COM_Name"),
+            },
+            notes="Portas Ethernet da LAN no TR-098; índices presentes definem a quantidade.",
         ),
     },
 )

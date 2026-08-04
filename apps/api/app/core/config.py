@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     genieacs_timeout_seconds: float = 15.0
     genieacs_max_concurrency: int = 12
     firmware_storage_dir: str = "/tmp/mr9-firmwares"
+    environment: str = "development"
 
     @property
     def cors_origin_list(self) -> list[str]:

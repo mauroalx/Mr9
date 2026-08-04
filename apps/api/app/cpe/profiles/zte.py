@@ -12,6 +12,11 @@ ZTE = VendorProfile(
     priority=100,
     notes="Paths ZTE comuns (VLAN / vizinhos sob LANDevice.*.WiFi|WIFI.Radio).",
     families={
+        Cap.WIFI_BANDWIDTH: PathFamily(
+            capability=Cap.WIFI_BANDWIDTH,
+            candidates=("{root}.X_ZTE-COM_BandWidth", "{root}.Bandwidth"),
+            leaf_map={"bandwidth": ("X_ZTE-COM_BandWidth", "Bandwidth")},
+        ),
         Cap.WAN_VLAN: PathFamily(
             capability=Cap.WAN_VLAN,
             candidates=(

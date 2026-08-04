@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AppShell } from "@/components/AppShell";
+import { OpsChrome } from "@/components/chrome/OpsChrome";
 import { api, getToken } from "@/lib/api";
 
 type SetupStatus = { installed: boolean };
 
 export default function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (!getToken()) {
@@ -18,9 +19,16 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
     api<SetupStatus>("/setup/status", { auth: false })
       .then((s) => {
         if (!s.installed) router.replace("/setup");
+        else setReady(true);
       })
-      .catch(() => undefined);
+      .catch(() => setReady(true));
   }, [router]);
 
-  return <AppShell>{children}</AppShell>;
+  if (!ready) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-canvas text-[13px] text-quiet">Carregando…</div>
+    );
+  }
+
+  return <OpsChrome>{children}</OpsChrome>;
 }

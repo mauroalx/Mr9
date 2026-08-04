@@ -28,9 +28,12 @@ async def minha_acao(ctx: ActionContext) -> dict:
 ```
 
 1. Crie o handler com `@action(...)`.
-2. Garanta o import em `ensure_handlers_loaded()` em `base.py` (já importa os pacotes listados).
-3. Se for módulo novo, acrescente o import em `base.ensure_handlers_loaded`.
+2. Se for módulo novo, acrescente o import em `app/acs/actions/__init__.py`.
 4. Teste: registre o nome em `tests/test_acs_actions_registry.py`.
 5. Paths vendor → `docs/vendor-paths.md`, não hard-code no handler.
 
 Catálogo runtime: `GET /api/v1/acs/actions` (precisa `acs.access`).
+
+Ações de leitura frequente podem declarar `audit=False` quando o registro por
+amostra apenas poluiria a trilha. Essa exceção deve ser explícita no decorator;
+ações que alteram configuração permanecem auditáveis por padrão.

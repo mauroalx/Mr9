@@ -9,7 +9,7 @@
 ## Passos
 
 ```bash
-git clone <seu-fork-mr9>.git
+git clone https://github.com/mauroalx/Mr9.git
 cd Mr9
 ./scripts/bootstrap.sh
 ```
@@ -30,10 +30,32 @@ docker compose -f docker-compose.dev.yml up --build
 
 ```bash
 cp .env.example .env   # defina MR9_SECRET_KEY forte
+./scripts/bootstrap.sh # gera também a senha do PostgreSQL
 docker compose up -d --build
 ```
 
-Coloque TLS na frente (Caddy/Nginx). Sample em `deploy/nginx.sample.conf`.
+Defina `MR9_CORS_ORIGINS` com a origem HTTPS pública. Coloque TLS na frente (Caddy/Nginx). Sample em `deploy/nginx.sample.conf`.
+
+O compose de produção não publica o PostgreSQL e vincula web/API a `127.0.0.1`. Não remova essas restrições sem um firewall equivalente.
+
+## Atualização
+
+```bash
+docker compose exec -T postgres pg_dump -U mr9 mr9 > mr9-backup.sql
+git pull --ff-only
+docker compose up -d --build
+```
+
+A imagem da API executa `alembic upgrade head` antes de iniciar.
+
+### Bancos anteriores à versão 0.1.0
+
+As versões locais anteriores não registravam revisão Alembic. Faça backup e, depois de confirmar que o sistema antigo iniciou pelo menos uma vez com o código mais recente, marque a base e aplique atualizações:
+
+```bash
+docker compose run --rm api alembic stamp 730cf63cba2a
+docker compose run --rm api alembic upgrade head
+```
 
 ## Reset de instalação
 

@@ -23,6 +23,7 @@ from app.cpe.params import (
     resolve_family,
     resolve_leaf_keys,
 )
+from app.cpe.profiles import fiberhome as fiberhome_mod
 from app.cpe.profiles import generic as generic_mod
 from app.cpe.profiles import huawei as huawei_mod
 from app.cpe.profiles import intelbras as intelbras_mod
@@ -33,8 +34,29 @@ ALL_PROFILES: tuple[VendorProfile, ...] = (
     *zte_mod.PROFILES,
     *huawei_mod.PROFILES,
     *intelbras_mod.PROFILES,
+    *fiberhome_mod.PROFILES,
     generic_mod.GENERIC,
 )
+
+_MANUFACTURER_LABELS = {
+    "zte": "ZTE",
+    "huawei": "Huawei",
+    "intelbras": "Intelbras",
+    "fiberhome": "FiberHome",
+}
+
+
+def manufacturer_distribution_groups() -> list[dict[str, str]]:
+    """Grupos conhecidos para contagem exata no dashboard."""
+    vendor_ids = {profile.id.split(".", 1)[0] for profile in ALL_PROFILES if profile.id != "generic.igd"}
+    return [
+        {
+            "id": vendor_id,
+            "label": _MANUFACTURER_LABELS.get(vendor_id, vendor_id.title()),
+            "pattern": vendor_id,
+        }
+        for vendor_id in sorted(vendor_ids)
+    ]
 
 
 def profiles_for(dev: dict[str, Any]) -> list[VendorProfile]:
@@ -94,5 +116,6 @@ __all__ = [
     "family_for",
     "identity_from_device",
     "leaf_keys_for",
+    "manufacturer_distribution_groups",
     "profiles_for",
 ]

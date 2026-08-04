@@ -35,12 +35,27 @@ class UserIn(BaseModel):
     is_active: bool = True
 
 
+class UserUpdate(BaseModel):
+    email: EmailStr
+    name: str = Field(min_length=1, max_length=200)
+    group_id: str
+    is_active: bool = True
+    password: str | None = Field(default=None, min_length=8)
+
+
 class UserOut(BaseModel):
     id: str
     email: str
     name: str
     group_id: str | None
     is_active: bool
+
+
+def _uuid_or_400(value: str) -> uuid.UUID:
+    try:
+        return uuid.UUID(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Identificador inválido") from exc
 
 
 @router.get("/groups", response_model=list[GroupOut])
@@ -63,12 +78,22 @@ def create_group(body: GroupIn, db: Session = Depends(get_db), auth: AuthContext
 
 
 @router.patch("/groups/{group_id}", response_model=GroupOut)
-def update_group(group_id: str, body: GroupIn, db: Session = Depends(get_db), auth: AuthContext = Depends(get_current_auth)):
+def update_group(
+    group_id: str,
+    body: GroupIn,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(get_current_auth),
+):
     auth.require("security.groups")
-    g = db.get(Group, uuid.UUID(group_id))
+    gid = _uuid_or_400(group_id)
+    g = db.get(Group, gid)
     if not g:
         raise HTTPException(status_code=404, detail="Grupo não encontrado")
-    g.name = body.name.strip()
+    name = body.name.strip()
+    duplicate = db.query(Group).filter(Group.name == name, Group.id != gid).first()
+    if duplicate:
+        raise HTTPException(status_code=400, detail="Grupo já existe")
+    g.name = name
     g.permissions = sorted(normalize_permissions(body.permissions))
     db.commit()
     db.refresh(g)
@@ -98,7 +123,7 @@ def create_user(body: UserIn, db: Session = Depends(get_db), auth: AuthContext =
     email = body.email.lower().strip()
     if db.query(User).filter(User.email == email).first():
         raise HTTPException(status_code=400, detail="E-mail já em uso")
-    gid = uuid.UUID(body.group_id)
+    gid = _uuid_or_400(body.group_id)
     if not db.get(Group, gid):
         raise HTTPException(status_code=400, detail="Grupo inválido")
     u = User(
@@ -113,3 +138,39 @@ def create_user(body: UserIn, db: Session = Depends(get_db), auth: AuthContext =
     db.commit()
     db.refresh(u)
     return UserOut(id=str(u.id), email=u.email, name=u.name, group_id=str(u.group_id), is_active=u.is_active)
+
+
+@router.patch("/users/{user_id}", response_model=UserOut)
+def update_user(
+    user_id: str,
+    body: UserUpdate,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(get_current_auth),
+):
+    auth.require("security.users")
+    uid = _uuid_or_400(user_id)
+    gid = _uuid_or_400(body.group_id)
+    user = db.get(User, uid)
+    if not user or user.is_superadmin:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    if not db.get(Group, gid):
+        raise HTTPException(status_code=400, detail="Grupo inválido")
+    email = body.email.lower().strip()
+    duplicate = db.query(User).filter(User.email == email, User.id != uid).first()
+    if duplicate:
+        raise HTTPException(status_code=400, detail="E-mail já em uso")
+    user.email = email
+    user.name = body.name.strip()
+    user.group_id = gid
+    user.is_active = body.is_active
+    if body.password:
+        user.password_hash = hash_password(body.password)
+    db.commit()
+    db.refresh(user)
+    return UserOut(
+        id=str(user.id),
+        email=user.email,
+        name=user.name,
+        group_id=str(user.group_id) if user.group_id else None,
+        is_active=user.is_active,
+    )

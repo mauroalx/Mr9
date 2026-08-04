@@ -1,6 +1,10 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
+  workflow_call:
   push:
     branches: [main]
   pull_request:
@@ -17,14 +21,19 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-dev.txt
       - name: Ruff
         run: ruff check app tests
       - name: Pytest
         env:
           MR9_SECRET_KEY: ci-secret-key-for-tests-only
-          MR9_DATABASE_URL: sqlite+pysqlite:///:memory:
+          MR9_DATABASE_URL: "sqlite+pysqlite:///:memory:"
         run: PYTHONPATH=. pytest -q --tb=short
+      - name: Alembic smoke test
+        env:
+          MR9_SECRET_KEY: ci-secret-key-for-tests-only
+          MR9_DATABASE_URL: sqlite+pysqlite:////tmp/mr9-ci.db
+        run: alembic upgrade head && alembic downgrade base && alembic upgrade head
 
   web:
     runs-on: ubuntu-latest
@@ -35,10 +44,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run lint
       - run: npm test
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high

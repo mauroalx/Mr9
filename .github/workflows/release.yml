@@ -6,7 +6,11 @@ on:
       - "v*"
 
 jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+
   release:
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -19,7 +23,4 @@ jobs:
           body: |
             Release Mr9 `${{ github.ref_name }}`.
 
-            ## Checklist
-            - [ ] CI verde na tag
-            - [ ] Notas de migração / wizard revisadas
-            - [ ] Sem secrets no artefato
+            Consulte o changelog e as instruções de instalação antes de atualizar.

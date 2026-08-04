@@ -8,12 +8,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-# Force sqlite + secret before app import side effects
+# Define o banco isolado e a chave antes dos imports que leem o ambiente.
 os.environ["MR9_SECRET_KEY"] = "unit-test-secret-key-please-change"
 os.environ["MR9_DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
 
-from app.core.database import Base, get_db  # noqa: E402
-from app.main import app  # noqa: E402
+from app.core.database import Base, get_db
+from app.main import app
 
 
 @pytest.fixture()

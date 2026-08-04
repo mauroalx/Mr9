@@ -22,6 +22,8 @@ class AppSettings(Base):
     diagnostic_cooldown_s: Mapped[int] = mapped_column(Integer, nullable=False, default=60)
     diagnostic_timeout_s: Mapped[int] = mapped_column(Integer, nullable=False, default=120)
     notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # Fingerprint da MR9_SECRET_KEY usada ao cifrar bearers NBI (detecção de rotação).
+    crypto_key_fp: Mapped[str | None] = mapped_column(String(16), nullable=True, default=None)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

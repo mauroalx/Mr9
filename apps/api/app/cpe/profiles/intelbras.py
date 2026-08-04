@@ -11,6 +11,11 @@ INTELBRAS = VendorProfile(
     priority=100,
     notes="Família X_ITBS_* para start/estado/resultado de vizinhança Wi‑Fi.",
     families={
+        Cap.WIFI_BANDWIDTH: PathFamily(
+            capability=Cap.WIFI_BANDWIDTH,
+            candidates=("{root}.Bandwidth",),
+            leaf_map={"bandwidth": ("Bandwidth",)},
+        ),
         Cap.NEIGHBOR_START: PathFamily(
             capability=Cap.NEIGHBOR_START,
             candidates=(

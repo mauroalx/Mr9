@@ -11,6 +11,37 @@ HUAWEI = VendorProfile(
     priority=100,
     notes="Paths Huawei comuns. Leaf stub Genie sem _value: use param_exists(require_value=False).",
     families={
+        Cap.OPTICAL_CONTAINER: PathFamily(
+            capability=Cap.OPTICAL_CONTAINER,
+            candidates=(
+                "InternetGatewayDevice.WANDevice.1.X_GponInterafceConfig",
+                "InternetGatewayDevice.WANDevice.1.X_GponInterfaceConfig",
+                "Device.Optical.Interface",
+            ),
+            leaf_map={
+                "status": ("Status", "ConnectionStatus"),
+                "technology": ("Technology", "Standard"),
+                "rx_power": ("RXPower", "RxPower"),
+                "tx_power": ("TXPower", "TxPower"),
+                "distance": ("Distance", "ONTDistance", "OnuDistance"),
+                "temperature": ("TransceiverTemperature", "Temperature"),
+                "voltage": ("SupplyVoltage", "Voltage"),
+                "bias": ("BiasCurrent", "TxBias"),
+                "fec": ("Stats.FECError", "Stats.FECErrors"),
+                "hec": ("Stats.HECError", "Stats.HECErrors"),
+                "crc": ("Stats.CRCError", "Stats.CRCErrors"),
+            },
+            notes="Huawei usa também o typo de firmware X_GponInterafceConfig.",
+        ),
+        Cap.WIFI_BANDWIDTH: PathFamily(
+            capability=Cap.WIFI_BANDWIDTH,
+            candidates=(
+                "{root}.X_HW_HT20",
+                "{root}.X_HW_CurrentOperatingChannelBandwidth",
+                "{root}.Bandwidth",
+            ),
+            leaf_map={"bandwidth": ("X_HW_HT20", "X_HW_CurrentOperatingChannelBandwidth", "Bandwidth")},
+        ),
         Cap.WAN_VLAN: PathFamily(
             capability=Cap.WAN_VLAN,
             candidates=(

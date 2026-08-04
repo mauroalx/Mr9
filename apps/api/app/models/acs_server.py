@@ -16,7 +16,8 @@ class AcsServer(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     base_url: Mapped[str] = mapped_column(String(500), nullable=False)
-    bearer_token_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    # None = NBI sem autenticação Bearer (comum em GenieACS só por firewall).
+    bearer_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     verify_tls: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     online_threshold_s: Mapped[int] = mapped_column(Integer, nullable=False, default=300)
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

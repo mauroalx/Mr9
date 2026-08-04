@@ -5,14 +5,18 @@
 O frontend envia apenas `X-Acs-Server-Id` + JWT. A API:
 
 1. Carrega `AcsServer`
-2. Decifra `bearer_token_encrypted`
+2. Se houver `bearer_token_encrypted`, decifra; senão chama o NBI sem auth
 3. Chama o NBI (`/devices`, `/tasks`, …)
 
 ## Cadastro
 
-Campos: `name`, `base_url`, `bearer_token`, `verify_tls`, `online_threshold_s`, `is_default`.
+Campos: `name`, `base_url`, `bearer_token` (**opcional**), `verify_tls`, `online_threshold_s`, `is_default`.
 
-Probe: `GET {base}/devices/?query={}&limit=1` com Bearer.
+Sem bearer: o client chama o NBI sem `Authorization` (cenário típico com GenieACS aberto só ao IP da VPS Mr9).
+
+Com bearer: valor é cifrado em `bearer_token_encrypted`; omitido/vazio no PATCH remove a auth.
+
+Probe: `GET {base}/devices/?query={}&limit=1` (com Bearer se configurado).
 
 ## Firewall
 

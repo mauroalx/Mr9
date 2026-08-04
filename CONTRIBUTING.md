@@ -16,14 +16,16 @@ Obrigado por contribuir. O projeto prioriza **ISPs reais**, código limpo e PRs 
 ```bash
 # API
 cd apps/api
-python3 -m pip install -r requirements.txt
+python3 -m pip install -r requirements-dev.txt
 MR9_SECRET_KEY=dev PYTHONPATH=. pytest -q
+MR9_SECRET_KEY=dev MR9_DATABASE_URL=sqlite+pysqlite:////tmp/mr9-migration.db alembic upgrade head
 
 # Web
 cd apps/web
 npm ci
 npm test
 npx tsc --noEmit
+npm run build
 ```
 
 ## Adicionar permission key

@@ -6,8 +6,11 @@ from typing import Any
 
 
 def leaf(node: Any) -> Any:
-    if isinstance(node, dict) and "_value" in node:
-        return node.get("_value")
+    if isinstance(node, dict):
+        # Nós de parâmetros do GenieACS carregam metadados (`_object`,
+        # `_writable`, `_type` etc.). Sem `_value`, o CPE não informou um
+        # valor escalar; nunca exponha o dicionário de metadados como dado.
+        return node.get("_value") if "_value" in node else None
     return node
 
 
@@ -72,4 +75,4 @@ def iter_numeric_children(node: Any) -> list[tuple[str, dict[str, Any]]]:
     for k, v in node.items():
         if str(k).isdigit() and isinstance(v, dict):
             out.append((str(k), v))
-    return out
+    return sorted(out, key=lambda item: int(item[0]))

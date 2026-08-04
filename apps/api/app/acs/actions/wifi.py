@@ -27,6 +27,9 @@ async def wifi_set(ctx: ActionContext) -> dict[str, Any]:
             root,
             ssid=None if ctx.params.get("ssid") is None else str(ctx.params.get("ssid")),
             password=str(ctx.params["password"]) if ctx.params.get("password") else None,
+            channel=int(ctx.params["channel"]) if ctx.params.get("channel") not in (None, "") else None,
+            bandwidth=str(ctx.params["bandwidth"]) if ctx.params.get("bandwidth") else None,
+            enabled=bool(ctx.params["enabled"]) if ctx.params.get("enabled") is not None else None,
             dev=dev,
         )
     if not pvs:

@@ -4,15 +4,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
-from app.core.crypto import encrypt_secret
+from app.core.crypto import encrypt_bearer, normalize_bearer
 from app.core.database import get_db
+from app.core.deps import AuthContext, get_current_auth
 from app.core.permissions import OPERATOR_DEFAULT_PERMISSIONS
-from app.core.security import hash_password
+from app.core.security import create_token, hash_password
 from app.integrations.acs.genieacs_client import GenieAcsClient
 from app.models.acs_server import AcsServer
 from app.models.group import Group
 from app.models.settings import AppSettings
 from app.models.user import User
+from app.services.crypto_integrity import stamp_crypto_fingerprint
 
 router = APIRouter(prefix="/setup", tags=["setup"])
 
@@ -25,6 +27,14 @@ def _settings_row(db: Session) -> AppSettings:
         db.commit()
         db.refresh(row)
     return row
+
+
+def _require_open_setup(db: Session, auth: AuthContext) -> None:
+    """Permite continuar o wizard somente ao Super Admin e antes da conclusão."""
+    if not auth.is_superadmin:
+        raise HTTPException(status_code=403, detail="Apenas o Super Admin pode concluir a instalação")
+    if _settings_row(db).installed:
+        raise HTTPException(status_code=409, detail="Instalação já concluída")
 
 
 @router.get("/status")
@@ -61,7 +71,14 @@ async def create_superadmin(body: SuperAdminIn, db: Session = Depends(get_db)):
     )
     db.add(user)
     db.commit()
-    return {"ok": True, "email": email}
+    db.refresh(user)
+    return {
+        "ok": True,
+        "email": email,
+        "access_token": create_token(str(user.id), token_type="access"),
+        "refresh_token": create_token(str(user.id), token_type="refresh"),
+        "token_type": "bearer",
+    }
 
 
 class SettingsStepIn(BaseModel):
@@ -74,9 +91,12 @@ class SettingsStepIn(BaseModel):
 
 
 @router.post("/settings")
-def setup_settings(body: SettingsStepIn, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.is_superadmin.is_(True)).count() == 0:
-        raise HTTPException(status_code=400, detail="Crie o Super Admin antes")
+def setup_settings(
+    body: SettingsStepIn,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(get_current_auth),
+):
+    _require_open_setup(db, auth)
     s = _settings_row(db)
     s.timezone = body.timezone
     s.locale = body.locale
@@ -91,16 +111,20 @@ def setup_settings(body: SettingsStepIn, db: Session = Depends(get_db)):
 class AcsStepIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     base_url: str = Field(min_length=8, max_length=500)
-    bearer_token: str = Field(min_length=1)
+    bearer_token: str | None = None
     verify_tls: bool = False
     online_threshold_s: int = 300
 
 
 @router.post("/acs-server")
-async def setup_acs(body: AcsStepIn, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.is_superadmin.is_(True)).count() == 0:
-        raise HTTPException(status_code=400, detail="Crie o Super Admin antes")
-    client = GenieAcsClient(base_url=body.base_url, bearer_token=body.bearer_token, verify_tls=body.verify_tls)
+async def setup_acs(
+    body: AcsStepIn,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(get_current_auth),
+):
+    _require_open_setup(db, auth)
+    token = normalize_bearer(body.bearer_token)
+    client = GenieAcsClient(base_url=body.base_url, bearer_token=token, verify_tls=body.verify_tls)
     try:
         probe = await client.probe()
     finally:
@@ -109,13 +133,13 @@ async def setup_acs(body: AcsStepIn, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=f"Falha ao contactar NBI (HTTP {probe.get('status_code')})")
     if db.query(AcsServer).filter(AcsServer.name == body.name.strip()).first():
         raise HTTPException(status_code=400, detail="Nome de ACS já existe")
-    # first server is default
+    # A primeira instância cadastrada se torna a padrão.
     for row in db.query(AcsServer).all():
         row.is_default = False
     server = AcsServer(
         name=body.name.strip(),
         base_url=body.base_url.strip().rstrip("/"),
-        bearer_token_encrypted=encrypt_secret(body.bearer_token),
+        bearer_token_encrypted=encrypt_bearer(token),
         verify_tls=body.verify_tls,
         online_threshold_s=body.online_threshold_s,
         is_default=True,
@@ -123,6 +147,8 @@ async def setup_acs(body: AcsStepIn, db: Session = Depends(get_db)):
     db.add(server)
     db.commit()
     db.refresh(server)
+    if token:
+        stamp_crypto_fingerprint(db)
     return {"ok": True, "id": str(server.id), "probe": probe}
 
 
@@ -135,7 +161,12 @@ class OperatorStepIn(BaseModel):
 
 
 @router.post("/operator")
-def setup_operator(body: OperatorStepIn, db: Session = Depends(get_db)):
+def setup_operator(
+    body: OperatorStepIn,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(get_current_auth),
+):
+    _require_open_setup(db, auth)
     if not body.create:
         return {"ok": True, "skipped": True}
     if not body.email or not body.password or not body.name:
@@ -161,9 +192,11 @@ def setup_operator(body: OperatorStepIn, db: Session = Depends(get_db)):
 
 
 @router.post("/complete")
-def setup_complete(db: Session = Depends(get_db)):
-    if db.query(User).filter(User.is_superadmin.is_(True)).count() == 0:
-        raise HTTPException(status_code=400, detail="Super Admin obrigatório")
+def setup_complete(
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(get_current_auth),
+):
+    _require_open_setup(db, auth)
     if db.query(AcsServer).count() == 0:
         raise HTTPException(status_code=400, detail="Cadastre ao menos 1 servidor ACS")
     s = _settings_row(db)

@@ -16,6 +16,19 @@ async def reboot(ctx: ActionContext) -> dict[str, Any]:
 
 @action("sync", permission="acs.devices.write", notes="refreshObject no IGD root do catálogo")
 async def sync(ctx: ActionContext) -> dict[str, Any]:
+    return await _refresh_inventory(ctx)
+
+
+@action(
+    "inventory_refresh",
+    permission="acs.access",
+    notes="Atualiza o inventário ausente sem alterar a configuração do CPE",
+)
+async def inventory_refresh(ctx: ActionContext) -> dict[str, Any]:
+    return await _refresh_inventory(ctx)
+
+
+async def _refresh_inventory(ctx: ActionContext) -> dict[str, Any]:
     dev = await ctx.load_device()
     igd = (candidates_for(dev, Cap.IGD_ROOT) or ["InternetGatewayDevice"])[0]
     return await create_named_task(

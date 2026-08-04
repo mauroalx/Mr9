@@ -5,8 +5,9 @@ Como contribuir: veja `docs/device-actions.md`.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -45,17 +46,30 @@ class ActionSpec:
     handler: HandlerFn
     permission: str | None = None
     notes: str = ""
+    audit: bool = True
 
 
 _REGISTRY: dict[str, ActionSpec] = {}
 
 
-def action(name: str, *, permission: str | None = None, notes: str = "") -> Callable[[HandlerFn], HandlerFn]:
+def action(
+    name: str,
+    *,
+    permission: str | None = None,
+    notes: str = "",
+    audit: bool = True,
+) -> Callable[[HandlerFn], HandlerFn]:
     def decorator(fn: HandlerFn) -> HandlerFn:
         key = name.strip()
         if key in _REGISTRY:
             raise RuntimeError(f"Action duplicada: {key}")
-        _REGISTRY[key] = ActionSpec(name=key, handler=fn, permission=permission, notes=notes)
+        _REGISTRY[key] = ActionSpec(
+            name=key,
+            handler=fn,
+            permission=permission,
+            notes=notes,
+            audit=audit,
+        )
         return fn
 
     return decorator
@@ -106,6 +120,42 @@ async def set_parameter_values(
         timeout_ms=timeout_ms,
     )
     return task_result(res)
+
+
+async def set_parameter_values_immediately(
+    client: GenieAcsClient,
+    device_id: str,
+    parameter_values: list[list[Any]],
+    *,
+    timeout_ms: int = 12000,
+) -> dict[str, Any]:
+    """Executa uma escrita interativa sem deixá-la pendente no GenieACS.
+
+    Diagnósticos disparados por uma pessoa perdem o contexto se forem executados
+    horas depois. Um ``202`` indica que o connection request falhou; nesse caso,
+    removemos a tarefa criada e devolvemos um erro acionável ao operador.
+    """
+    res = await client.create_task(
+        device_id,
+        {"name": "setParameterValues", "parameterValues": parameter_values},
+        connection_request=True,
+        timeout_ms=timeout_ms,
+    )
+    if res.status_code == 202:
+        task_id = res.json.get("_id") if isinstance(res.json, dict) else None
+        if task_id:
+            await client.delete_task(str(task_id))
+        raise HTTPException(
+            status_code=504,
+            detail="O CPE não respondeu à solicitação imediata do ACS. Tente novamente quando ele estiver alcançável.",
+        )
+    result = task_result(res, ok_codes={200})
+    if not result["ok"]:
+        raise HTTPException(
+            status_code=502,
+            detail=f"O GenieACS não iniciou o diagnóstico (HTTP {res.status_code}).",
+        )
+    return result
 
 
 async def create_named_task(

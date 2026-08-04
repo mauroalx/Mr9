@@ -1,5 +1,10 @@
 from app.cpe.params import Cap, DeviceIdentity, matching_profiles, resolve_candidates
-from app.cpe.profiles import ALL_PROFILES, candidates_for, identity_from_device
+from app.cpe.profiles import (
+    ALL_PROFILES,
+    candidates_for,
+    identity_from_device,
+    manufacturer_distribution_groups,
+)
 
 
 def test_h3601p_prefers_wifi_before_wifi_upper():
@@ -41,3 +46,14 @@ def test_candidates_for_device_tree():
     }
     assert identity_from_device(dev).product_class == "H3601P"
     assert "WiFi" in candidates_for(dev, Cap.WIFI_RADIO_CONTAINER)[0]
+
+
+def test_fiberhome_profile_and_manufacturer_groups():
+    ident = DeviceIdentity(
+        manufacturer="FiberHome Telecommunication Technologies Co., Ltd.",
+        product_class="SR120-A",
+    )
+    matched_ids = [profile.id for profile in matching_profiles(ident, ALL_PROFILES)]
+    assert matched_ids[0] == "fiberhome"
+    groups = {group["id"] for group in manufacturer_distribution_groups()}
+    assert {"zte", "huawei", "intelbras", "fiberhome"} <= groups

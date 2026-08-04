@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import quote
 
 import httpx
+
+from app.core.exceptions import AcsUpstreamError
 
 
 def encode_device_id_for_path(device_id: str) -> str:
@@ -17,6 +19,7 @@ def encode_device_id_for_path(device_id: str) -> str:
 class GenieAcsResponse:
     status_code: int
     json: Any
+    headers: dict[str, str] = field(default_factory=dict)
 
 
 class GenieAcsClient:
@@ -64,21 +67,47 @@ class GenieAcsClient:
         *,
         params: dict[str, str] | None = None,
         json_body: Any | None = None,
+        timeout_seconds: float | None = None,
     ) -> GenieAcsResponse:
         url = f"{self.base_url}{path}"
         async with self._sem:
             client = await self._get_client()
-            res = await client.request(method, url, params=params, json=json_body)
+            try:
+                res = await client.request(
+                    method,
+                    url,
+                    params=params,
+                    json=json_body,
+                    timeout=httpx.Timeout(timeout_seconds or self.timeout_seconds),
+                )
+            except httpx.TimeoutException as exc:
+                raise AcsUpstreamError(
+                    "O GenieACS excedeu o tempo limite da operação.",
+                    status_code=504,
+                ) from exc
+            except httpx.RequestError as exc:
+                raise AcsUpstreamError(
+                    "Não foi possível comunicar com o GenieACS.",
+                    status_code=502,
+                ) from exc
         try:
             payload = res.json()
-        except Exception:
+        except ValueError:
             payload = res.text
-        return GenieAcsResponse(status_code=int(res.status_code), json=payload)
+        return GenieAcsResponse(
+            status_code=int(res.status_code),
+            json=payload,
+            headers=dict(res.headers),
+        )
 
     async def probe(self) -> dict[str, Any]:
         res = await self._request("GET", "/devices/", params={"query": "{}", "limit": "1"})
         ok = res.status_code == 200
-        return {"ok": ok, "status_code": res.status_code, "sample_count": len(res.json) if isinstance(res.json, list) else 0}
+        return {
+            "ok": ok,
+            "status_code": res.status_code,
+            "sample_count": len(res.json) if isinstance(res.json, list) else 0,
+        }
 
     async def search_devices(
         self,
@@ -100,8 +129,31 @@ class GenieAcsClient:
             raise RuntimeError(f"GenieACS devices search failed HTTP {res.status_code}: {res.json!r}")
         return res.json if isinstance(res.json, list) else []
 
-    async def get_device(self, device_id: str, *, projection: list[str] | None = None) -> dict[str, Any] | None:
-        devices = await self.search_devices(query={"_id": str(device_id)}, projection=projection, limit=1, skip=0)
+    async def count_devices(self, *, query: dict[str, Any]) -> int:
+        """Conta no NBI sem transferir os documentos da coleção."""
+        res = await self._request(
+            "HEAD",
+            "/devices/",
+            params={"query": json.dumps(query)},
+        )
+        if res.status_code != 200:
+            raise RuntimeError(f"GenieACS devices count failed HTTP {res.status_code}")
+        # GenieACS 1.2 expõe `total`; algumas instalações/proxies usam
+        # `X-Total-Count`. Aceitamos ambos sem baixar os documentos.
+        raw = res.headers.get("total") or res.headers.get("x-total-count")
+        if raw is None:
+            raise RuntimeError("GenieACS devices count missing total header")
+        try:
+            return int(raw)
+        except ValueError as exc:
+            raise RuntimeError("GenieACS returned an invalid X-Total-Count") from exc
+
+    async def get_device(
+        self, device_id: str, *, projection: list[str] | None = None
+    ) -> dict[str, Any] | None:
+        devices = await self.search_devices(
+            query={"_id": str(device_id)}, projection=projection, limit=1, skip=0
+        )
         return devices[0] if devices else None
 
     async def create_task(
@@ -118,7 +170,18 @@ class GenieAcsClient:
             qs["connection_request"] = ""
         if timeout_ms is not None:
             qs["timeout"] = str(int(timeout_ms))
-        return await self._request("POST", f"/devices/{enc}/tasks", params=qs or None, json_body=payload)
+        transport_timeout = (
+            max(self.timeout_seconds, (timeout_ms / 1000) + 5)
+            if timeout_ms is not None
+            else self.timeout_seconds
+        )
+        return await self._request(
+            "POST",
+            f"/devices/{enc}/tasks",
+            params=qs or None,
+            json_body=payload,
+            timeout_seconds=transport_timeout,
+        )
 
     async def set_tag(self, device_id: str, tag: str) -> GenieAcsResponse:
         enc = encode_device_id_for_path(device_id)
@@ -128,14 +191,24 @@ class GenieAcsClient:
         enc = encode_device_id_for_path(device_id)
         return await self._request("DELETE", f"/devices/{enc}/tags/{quote(str(tag), safe='')}")
 
-    async def list_tasks(self, *, query: dict[str, Any], limit: int | None = None) -> list[dict[str, Any]]:
+    async def list_tasks(
+        self, *, query: dict[str, Any], limit: int | None = None, skip: int | None = None
+    ) -> list[dict[str, Any]]:
         params: dict[str, str] = {"query": json.dumps(query)}
         if limit is not None:
             params["limit"] = str(int(limit))
+        if skip is not None:
+            params["skip"] = str(int(skip))
         res = await self._request("GET", "/tasks/", params=params)
         if res.status_code != 200:
             raise RuntimeError(f"GenieACS tasks list failed HTTP {res.status_code}")
         return res.json if isinstance(res.json, list) else []
+
+    async def retry_task(self, task_id: str) -> GenieAcsResponse:
+        return await self._request("POST", f"/tasks/{quote(str(task_id), safe='')}/retry")
+
+    async def delete_task(self, task_id: str) -> GenieAcsResponse:
+        return await self._request("DELETE", f"/tasks/{quote(str(task_id), safe='')}")
 
     async def list_faults(self, *, query: dict[str, Any], limit: int | None = None) -> list[dict[str, Any]]:
         params: dict[str, str] = {"query": json.dumps(query)}

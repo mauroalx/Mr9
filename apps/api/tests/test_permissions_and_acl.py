@@ -1,5 +1,5 @@
-from app.core.permissions import normalize_permissions, OPERATOR_DEFAULT_PERMISSIONS
-from app.core.security import hash_password, verify_password, create_token, decode_token
+from app.core.permissions import OPERATOR_DEFAULT_PERMISSIONS, normalize_permissions
+from app.core.security import create_token, decode_token, hash_password, verify_password
 
 
 def test_normalize_permissions_filters_unknown():
