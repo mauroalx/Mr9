@@ -77,12 +77,7 @@ else
   fi
 fi
 
-echo "Subindo stack (dev)…"
-docker compose -f docker-compose.dev.yml up -d --build postgres
-docker compose -f docker-compose.dev.yml up -d --build api
 echo
-echo "API:  http://localhost:8000/api/v1/health"
-echo "Web:  cd apps/web && npm run dev   (ou docker compose -f docker-compose.dev.yml up web)"
-echo "Wizard: http://localhost:3000/setup"
-echo
-echo "Pronto. Conclua o wizard e libere o GenieACS NBI só para o IP desta VPS."
+echo "Configuração preparada."
+echo "Produção: docker compose up -d --build"
+echo "Desenvolvimento: docker compose -f docker-compose.dev.yml up -d --build"

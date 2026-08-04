@@ -2,6 +2,13 @@
 
 Obrigado por contribuir. O projeto prioriza **ISPs reais**, código limpo e PRs pequenas.
 
+## Fluxo de branches
+
+- `dev` é a branch padrão e recebe PRs de funcionalidades e correções.
+- `main` contém somente versões estáveis; recebe PRs de release vindos de `dev`.
+- Tags de versão são criadas em commits já integrados à `main`.
+- Não envie commits diretamente para `dev` ou `main`.
+
 ## Definition of Done
 
 1. `ruff check` + `pytest` em `apps/api` verdes

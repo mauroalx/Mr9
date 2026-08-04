@@ -32,7 +32,7 @@ cp .env.example .env
 ./scripts/bootstrap.sh
 ```
 
-Antes de iniciar em produção, ajuste `MR9_CORS_ORIGINS` no `.env` com a origem HTTPS pública. Depois:
+O bootstrap somente gera e valida os segredos; ele não inicia containers. Antes de iniciar em produção, ajuste `MR9_CORS_ORIGINS` no `.env` com a origem HTTPS pública. Depois:
 
 ```bash
 docker compose up -d --build
