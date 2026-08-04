@@ -4,6 +4,8 @@ Painel open source para operação de CPEs através do **GenieACS NBI**. O Mr9 r
 
 > O navegador se comunica somente com a API Mr9. Bearers NBI permanecem cifrados no backend e nunca são enviados ao frontend.
 
+![Dashboard operacional do Mr9](docs/images/readme/dashboard.png)
+
 ## Recursos do MVP
 
 - Dashboard com contagem real da frota, disponibilidade, informs, fabricantes e firmwares.
@@ -13,6 +15,62 @@ Painel open source para operação de CPEs através do **GenieACS NBI**. O Mr9 r
 - Tarefas GenieACS, catálogo de firmwares, auditoria e multi-ACS.
 - ACL por grupos; o Super Admin fica fora do CRUD comum.
 - Perfis TR-069 por modelo → vendor → fallback genérico.
+
+## Interface
+
+As capturas abaixo usam dados demonstrativos e identificadores anonimizados. A disponibilidade de cada recurso depende dos parâmetros reportados pelo modelo e firmware do CPE.
+
+<details>
+<summary><strong>Inventário e gerenciamento de dispositivos</strong></summary>
+
+### Inventário paginado
+
+![Inventário de dispositivos com busca e filtros](docs/images/readme/devices.png)
+
+### Visão geral do CPE
+
+![Resumo operacional e telemetria do CPE](docs/images/readme/device-overview.png)
+
+### Redes Wi-Fi
+
+![Gerenciamento de múltiplos access points Wi-Fi](docs/images/readme/device-wifi.png)
+
+### Telemetria GPON/ONU
+
+![Potência óptica e contadores GPON da ONU](docs/images/readme/device-gpon.png)
+
+### Ferramentas de rede
+
+![Execução de ping e traceroute pelo CPE](docs/images/readme/device-tools.png)
+
+### Diagnósticos e histórico
+
+![Score, verificações e histórico de diagnósticos](docs/images/readme/device-diagnostics.png)
+
+</details>
+
+<details>
+<summary><strong>Wizard de instalação</strong></summary>
+
+O primeiro acesso conduz pela criação do Super Admin, pelas configurações operacionais e pelo cadastro do GenieACS.
+
+### 1. Super Admin
+
+![Criação do Super Admin](docs/images/readme/wizard-admin.png)
+
+### 2. Configurações
+
+![Configurações iniciais do Mr9](docs/images/readme/wizard-settings.png)
+
+### 3. GenieACS
+
+![Cadastro do servidor GenieACS](docs/images/readme/wizard-acs.png)
+
+### 4. Conclusão
+
+![Conclusão do wizard de instalação](docs/images/readme/wizard-finish.png)
+
+</details>
 
 ## Arquitetura
 

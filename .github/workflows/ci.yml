@@ -10,6 +10,20 @@ on:
   pull_request:
 
 jobs:
+  branch-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validar destino do PR
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_BRANCH: ${{ github.base_ref }}
+          HEAD_BRANCH: ${{ github.head_ref }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$BASE_BRANCH" = "main" ] && [ "$HEAD_BRANCH" != "dev" ]; then
+            echo "PRs para main devem partir exclusivamente de dev."
+            exit 1
+          fi
+
   api:
     runs-on: ubuntu-latest
     defaults:
