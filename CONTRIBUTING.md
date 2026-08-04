@@ -32,12 +32,13 @@ npx tsc --noEmit
 2. Use `auth.require("modulo.chave")` na rota
 3. Adicione teste cobrindo 403 sem a permissão (quando houver fixture de usuário comum)
 
-## Adicionar path vendor (Wi‑Fi / vizinhança)
+## Adicionar path vendor (Wi‑Fi / vizinhança / WAN…)
 
 1. Abra issue com template **Vendor path**
-2. Implemente extract/plan no serviço de diagnóstico/collector
-3. Teste unitário com inventário JSON mínimo do CPE
-4. Documente o path em `docs/nbi.md`
+2. Configure o path em `apps/api/app/cpe/profiles/` — **não** espalhe `if manufacturer ==` no código de rotas
+3. Ordem: perfil de **modelo** → **vendor** → **generic** (ver [docs/vendor-paths.md](docs/vendor-paths.md))
+4. Teste unitário com inventário JSON mínimo (`test_cpe_params_registry` / `test_cpe_extract`)
+5. Documente o path em `docs/nbi.md`
 
 ## Escopos de PR bons
 

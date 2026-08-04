@@ -16,12 +16,14 @@ from app.models.settings import AppSettings
 from app.services.acs_factory import build_client
 from app.services.cpe_extract import (
     dhcp_paths,
+    diag_roots,
     extract_dhcp_lan,
     extract_hosts,
     extract_neighbor_networks,
     extract_port_mappings,
     extract_wan_profiles,
     extract_wifi_radios,
+    wifi_set_parameter_values,
 )
 from app.services.diagnostic_service import run_router_diagnostic
 
@@ -242,16 +244,13 @@ async def device_actions(
             pvs = body.params.get("parameterValues")
             if not isinstance(pvs, list):
                 root = str(body.params.get("root") or "").strip()
-                ssid = body.params.get("ssid")
-                password = body.params.get("password")
                 if not root:
                     raise HTTPException(status_code=400, detail="root ou parameterValues obrigatório")
-                pvs = []
-                if ssid is not None:
-                    pvs.append([f"{root}.SSID", str(ssid), "xsd:string"])
-                if password:
-                    pvs.append([f"{root}.KeyPassphrase", str(password), "xsd:string"])
-                    pvs.append([f"{root}.PreSharedKey.1.KeyPassphrase", str(password), "xsd:string"])
+                pvs = wifi_set_parameter_values(
+                    root,
+                    ssid=None if body.params.get("ssid") is None else str(body.params.get("ssid")),
+                    password=str(body.params["password"]) if body.params.get("password") else None,
+                )
             if not pvs:
                 raise HTTPException(status_code=400, detail="Nenhuma alteração Wi‑Fi")
             return await _spv(client, device_id, pvs)
@@ -259,6 +258,9 @@ async def device_actions(
             root = str(body.params.get("root") or "").strip()
             if not PPP_ROOT_RE.match(root):
                 raise HTTPException(status_code=400, detail="WAN PPP root inválido")
+            dev = await client.get_device(device_id) or {}
+            profiles = extract_wan_profiles(dev)
+            profile = next((p for p in profiles if str(p.get("root")) == root), None)
             pvs: list[list[Any]] = []
             if body.params.get("username") is not None:
                 pvs.append([f"{root}.Username", str(body.params["username"]).strip(), "xsd:string"])
@@ -266,15 +268,20 @@ async def device_actions(
                 pvs.append([f"{root}.Password", str(body.params["password"]), "xsd:string"])
             if body.params.get("vlan") is not None:
                 vlan = str(body.params["vlan"]).strip()
-                vlan_path = str(body.params.get("vlan_path") or f"{root}.X_VT_VLANID")
+                vlan_path = str(
+                    body.params.get("vlan_path")
+                    or (profile or {}).get("vlan_path")
+                    or f"{root}.X_VT_VLANID"
+                )
                 pvs.append([vlan_path, int(vlan), "xsd:unsignedInt"])
             if "natEnabled" in body.params:
-                pvs.append([f"{root}.NATEnabled", bool(body.params["natEnabled"]), "xsd:boolean"])
+                nat_path = str((profile or {}).get("nat_path") or f"{root}.NATEnabled")
+                pvs.append([nat_path, bool(body.params["natEnabled"]), "xsd:boolean"])
             if not pvs:
                 raise HTTPException(status_code=400, detail="Nenhuma alteração WAN")
             return await _spv(client, device_id, pvs)
         if action == "dhcp_set":
-            paths = dhcp_paths()
+            paths = dhcp_paths(await client.get_device(device_id) or {})
             pvs = []
             p = body.params
             if "enabled" in p:
@@ -353,8 +360,8 @@ async def device_actions(
             host = str(body.params.get("host") or "").strip()
             if not host:
                 raise HTTPException(status_code=400, detail="host obrigatório")
-            # Queue IPPingDiagnostics on common IGD path (vendor may differ)
-            diagnostics_root = "InternetGatewayDevice.IPPingDiagnostics"
+            roots = diag_roots(await client.get_device(device_id) or {})
+            diagnostics_root = roots.get("ping") or "InternetGatewayDevice.IPPingDiagnostics"
             pvs = [
                 [f"{diagnostics_root}.Host", host, "xsd:string"],
                 [f"{diagnostics_root}.NumberOfRepetitions", int(body.params.get("count") or 3), "xsd:unsignedInt"],
@@ -365,7 +372,8 @@ async def device_actions(
             host = str(body.params.get("host") or "").strip()
             if not host:
                 raise HTTPException(status_code=400, detail="host obrigatório")
-            root = "InternetGatewayDevice.TraceRouteDiagnostics"
+            roots = diag_roots(await client.get_device(device_id) or {})
+            root = roots.get("traceroute") or "InternetGatewayDevice.TraceRouteDiagnostics"
             pvs = [
                 [f"{root}.Host", host, "xsd:string"],
                 [f"{root}.DiagnosticsState", "Requested", "xsd:string"],

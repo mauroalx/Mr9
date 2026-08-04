@@ -37,6 +37,7 @@ make test
 
 - [Instalação](docs/instalacao.md)
 - [NBI / multi-ACS](docs/nbi.md)
+- [Paths vendor/modelo](docs/vendor-paths.md)
 - [ACL e Super Admin](docs/acl.md)
 - [Criptografia](docs/crypto.md)
 - [Design system](docs/design-system.md)
