@@ -29,8 +29,15 @@ npx tsc --noEmit
 ## Adicionar permission key
 
 1. Inclua em `apps/api/app/core/permissions.py` (`ALL_PERMISSION_IDS` + `PERMISSION_MODULES`)
-2. Use `auth.require("modulo.chave")` na rota
+2. Use `auth.require("modulo.chave")` na rota **ou** `permission=` no `@action(...)`
 3. Adicione teste cobrindo 403 sem a permissão (quando houver fixture de usuário comum)
+
+## Adicionar device action
+
+1. Handler em `apps/api/app/acs/actions/<area>.py` com `@action("nome", permission=..., notes=...)`
+2. Se for arquivo novo: importe-o em `apps/api/app/acs/actions/__init__.py`
+3. Atualize `tests/test_acs_actions_registry.py`
+4. Guia: [docs/device-actions.md](docs/device-actions.md)
 
 ## Adicionar path vendor (Wi‑Fi / vizinhança / WAN…)
 
