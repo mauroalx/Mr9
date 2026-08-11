@@ -8,9 +8,9 @@ dependencies = [
   "uvicorn[standard]==0.52.1",
   "sqlalchemy==2.0.51",
   "psycopg[binary]==3.3.4",
-  "alembic==1.18.5",
+  "alembic==1.19.1",
   "pydantic==2.13.4",
-  "pydantic-settings==2.14.2",
+  "pydantic-settings==2.15.0",
   "httpx==0.28.1",
   "cryptography==50.0.0",
   "passlib[argon2]==1.7.4",
@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0", "ruff==0.16.1"]
+dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0", "ruff==0.16.2"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
