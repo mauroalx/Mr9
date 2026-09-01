@@ -5,14 +5,14 @@ description = "Mr9 — micro-ACS API"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi==0.141.1",
-  "uvicorn[standard]==0.52.1",
-  "sqlalchemy==2.0.51",
+  "uvicorn[standard]==0.52.4",
+  "sqlalchemy==2.0.52",
   "psycopg[binary]==3.3.4",
-  "alembic==1.18.5",
-  "pydantic==2.13.4",
-  "pydantic-settings==2.14.2",
+  "alembic==1.19.1",
+  "pydantic==2.13.5",
+  "pydantic-settings==2.15.0",
   "httpx==0.28.1",
-  "cryptography==50.0.0",
+  "cryptography==50.0.1",
   "passlib[argon2]==1.7.4",
   "python-jose[cryptography]==3.5.0",
   "python-multipart==0.0.32",
@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0", "ruff==0.16.1"]
+dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0", "ruff==0.16.5"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
